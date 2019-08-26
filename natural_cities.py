@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, Polygon
 from shapely.ops import polygonize_full, linemerge, unary_union
 import geopandas as gpd
+import pandas as pd
 
 # Read input data
 path = 'data/'
@@ -31,7 +32,7 @@ def natural_polygons(points_df):
     head = edges_df[edges_df['length'] < edges_df.mean(axis=0).length]
     linework = linemerge(head.geometry.values)
     linework = unary_union(linework)
-    result, dangles, cuts, invalids = polygonize_full(linework)
+    result, _, _, _ = polygonize_full(linework)
     result = unary_union(result)
     result = {'geometry':result}
     result_df = gpd.GeoDataFrame(result)
@@ -41,3 +42,13 @@ def natural_polygons(points_df):
 level_0 = natural_polygons(original_points)
 points_l0 = gpd.sjoin(original_points, level_0)
 
+def process_level(points, id_column):
+    level = []
+    for poly in points[id_column].unique():
+        p = points[points[id_column] == poly]
+        if p.shape[0] > 50:
+            level.append(natural_polygons(p))
+    level = pd.concat(level)
+    return(level)
+
+level_1 = process_level(points_l0, 'index_right')
