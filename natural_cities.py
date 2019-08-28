@@ -42,13 +42,30 @@ def natural_polygons(points_df):
 level_0 = natural_polygons(original_points)
 points_l0 = gpd.sjoin(original_points, level_0)
 
-def process_level(points, id_column):
+def process_level(points, id_column=None):
     level = []
-    for poly in points[id_column].unique():
-        p = points[points[id_column] == poly]
-        if p.shape[0] > 50:
-            level.append(natural_polygons(p))
-    level = pd.concat(level)
+    if id_column:
+        for poly in points[id_column].unique():
+            p = points[points[id_column] == poly]
+            if p.shape[0] > 50:
+                level.append(natural_polygons(p))
+        level = pd.concat(level)
+    else:
+        level = natural_polygons(points)
     return(level)
 
-level_1 = process_level(points_l0, 'index_right')
+
+level_dfs = []
+for i in range(3):
+    print(i)
+    if i == 0:
+        last_level = process_level(original_points)
+        level_dfs.append(last_level)
+    else:
+        points = gpd.sjoin(original_points, last_level)
+        print(points.columns)
+        last_level = process_level(points, 'index_right')
+        level_dfs.append(last_level)
+
+for i in range(3):
+    print(i)
