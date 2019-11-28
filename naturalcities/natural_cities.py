@@ -1,6 +1,6 @@
+import argparse
 import math
 from scipy.spatial import Delaunay
-import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, Polygon
@@ -8,11 +8,8 @@ from shapely.ops import polygonize_full, linemerge, unary_union
 import geopandas as gpd
 import pandas as pd
 
-# Read input data
-path = 'data/'
-f_path = path + 'wd_d_4.shp'
-original_points = gpd.read_file(f_path)
 
+# Processing functions
 def natural_polygons(points_df):
     """Take a GeoDataFrame with points and return the natural polygons."""
     coords = list(zip(points_df.geometry.x.values, points_df.geometry.y.values))
@@ -37,35 +34,41 @@ def natural_polygons(points_df):
     result = {'geometry':result}
     result_df = gpd.GeoDataFrame(result)
     result_df.crs = {'init':'epsg:4326'}
-    return result_df
-
-level_0 = natural_polygons(original_points)
-points_l0 = gpd.sjoin(original_points, level_0)
+    return (edges_df['length'], result_df)
 
 def process_level(points, id_column=None):
     level = []
     if id_column:
+        print(points[id_column].unique())
         for poly in points[id_column].unique():
             p = points[points[id_column] == poly]
-            if p.shape[0] > 50:
-                level.append(natural_polygons(p))
-        level = pd.concat(level)
+            if p.shape[0] > 500:
+                level.append(natural_polygons(p)[1])
+        if len(level):
+            level = pd.concat(level)
+        else:
+            level = None
     else:
-        level = natural_polygons(points)
-    return(level)
+        level = natural_polygons(points)[1]
+    return level
+
+def natural_cities(base_points, depth):
+    level_dfs = []
+    for i in range(depth):
+        if i == 0:
+            last_level = process_level(base_points)
+            points = base_points
+        else:
+            points = gpd.sjoin(points, last_level)
+            points.rename(columns={'index_right': 'last_id' + str(i)},
+                        inplace=True)
+            last_level = process_level(points, 'last_id' + str(i))
+        if last_level is not None:
+            last_level['level'] = 'level_' +  str(i)
+            last_level['poly_id'] = last_level.index
+            level_dfs.append(last_level)
+
+    return gpd.GeoDataFrame(pd.concat(level_dfs))
+    
 
 
-level_dfs = []
-for i in range(3):
-    print(i)
-    if i == 0:
-        last_level = process_level(original_points)
-        level_dfs.append(last_level)
-    else:
-        points = gpd.sjoin(original_points, last_level)
-        print(points.columns)
-        last_level = process_level(points, 'index_right')
-        level_dfs.append(last_level)
-
-for i in range(3):
-    print(i)
