@@ -32,8 +32,13 @@ def natural_polygons(points_df):
     result, _, _, _ = polygonize_full(linework)
     result = unary_union(result)
     result = {'geometry':result}
-    result_df = gpd.GeoDataFrame(result)
-    result_df.crs = {'init':'epsg:4326'}
+    try:
+        result_df = gpd.GeoDataFrame(result)
+        result_df.crs = {'init':'epsg:4326'}
+    except:
+        print(result)
+        return None
+        #result_df = gpd.GeoDataFrame({'geometry':[]})
     return (edges_df['length'], result_df)
 
 def process_level(points, id_column=None):
@@ -43,7 +48,9 @@ def process_level(points, id_column=None):
         for poly in points[id_column].unique():
             p = points[points[id_column] == poly]
             if p.shape[0] > 500:
-                level.append(natural_polygons(p)[1])
+                n = natural_polygons(p)
+                if n is not None:
+                    level.append(natural_polygons(p)[1])
         if len(level):
             level = pd.concat(level)
         else:
