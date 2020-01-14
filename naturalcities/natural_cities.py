@@ -74,7 +74,7 @@ def process_level(points, level=None, level_df=None):
         id_field = 'poly_id_' + level
         for poly in points[id_field].unique():
             p = points[points[id_field] == poly]
-            if p.shape[0] > 500:
+            if p.shape[0] > 100:
                 polygon = level_df.iloc[[poly]]
                 n = natural_polygons(p, polygon)
                 if n is not None:
@@ -143,7 +143,7 @@ def natural_cities(points, depth):
             this_level[0]['poly_id'] = this_level[0].index
             polygon_levels_list.append(this_level[0])
             this_level[1]['level'] = 'level_' + str(i)
-            # I'm not shure this works (why polygon index should
+            # I'm not sure this works (why polygon index should
             # align with lines?):
             this_level[1]['poly_id'] = this_level[1].index
             lines_level_list.append(this_level[1])

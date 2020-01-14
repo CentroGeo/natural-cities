@@ -7,7 +7,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Calculate Natural Cities\
                                      Polygons')
     parser.add_argument('--input', help="Path to input point shapefile.",
-                        default="data/osm_nodes.shp")
+                        default="data/sample.shp")
     parser.add_argument('--out_path', help="Path to output",
                         default="data/output/")
     parser.add_argument('--depth', help="Max Number of hierarchical levels",
