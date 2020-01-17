@@ -15,8 +15,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     original_points = gpd.read_file(args.input)
-    polygons, lines, points = natural_cities.natural_cities(original_points,
+    polygons, lines = natural_cities.natural_cities(original_points,
                                                             args.depth)
     polygons.to_file(os.path.join(args.out_path, 'polygons.shp'))
     lines.to_file(os.path.join(args.out_path, 'lines.shp'))
-    points.to_file(os.path.join(args.out_path, 'points.shp'))
+    #points.to_file(os.path.join(args.out_path, 'points.shp'))

@@ -3,11 +3,12 @@ import math
 from scipy.spatial import Delaunay
 import numpy as np
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString, Polygon
-from shapely.ops import polygonize_full, linemerge, unary_union
+from shapely.geometry import MultiPoint, Point, LineString, Polygon
+from shapely.ops import polygonize_full, linemerge, unary_union, triangulate
 import geopandas as gpd
 import pandas as pd
 
+   
 
 # Processing functions
 def natural_polygons(points_df, polygon=None):
@@ -18,28 +19,19 @@ def natural_polygons(points_df, polygon=None):
         points_df (GeoDataFrame): points to process into natural polygons.
         polygon (Polygon GeoDataframe): Single polygon that encloses the points
     """
-    coords = list(zip(points_df.geometry.x.values,
-                      points_df.geometry.y.values))
-    TIN = Delaunay(coords)
-    # list of coordinates for each edge
-    edges = []
-    for tr in TIN.simplices:
-        for i in range(3):
-            edge_idx0 = tr[i]
-            edge_idx1 = tr[(i+1) % 3]
-            edges.append(LineString((Point(TIN.points[edge_idx0]),
-                                     Point(TIN.points[edge_idx1]))))
 
-    edges = {'geometry': edges}
-    edges_df = gpd.GeoDataFrame(edges)
+    tin = triangulate(MultiPoint(points_df.geometry.values), edges=True)
+    edges_df = gpd.GeoDataFrame(tin)
+    edges_df.rename({0:'geometry'}, axis=1, inplace=True)
     edges_df['length'] = edges_df.geometry.length
     head = edges_df[edges_df['length'] < edges_df.mean(axis=0).length]
     head.crs = {'init': 'epsg:4326'}
     if polygon is not None:
         # use only lines within polygon
         head = gpd.sjoin(head, polygon, how='inner', op='within')
+
     linework = linemerge(head.geometry.values)
-    linework = unary_union(linework)
+    #linework = unary_union(linework)
     result, _, _, _ = polygonize_full(linework)
     result = unary_union(result)
     result = {'geometry': result}
@@ -48,8 +40,9 @@ def natural_polygons(points_df, polygon=None):
         result_df.crs = {'init': 'epsg:4326'}
     except:
         print(result)
-        return None
-        # result_df = gpd.GeoDataFrame({'geometry':[]})
+        # return None
+        result_df = gpd.GeoDataFrame({'geometry': [result['geometry']]})
+        result_df.crs = {'init': 'epsg:4326'}
     return (head, result_df)
 
 
@@ -71,7 +64,7 @@ def process_level(points, level=None, level_df=None):
     level_lines = []
     # level_points = []
     if level:
-        id_field = 'poly_id_' + level
+        id_field = 'poly_id_' + level  # La columna con los ids del nivel anterior
         for poly in points[id_field].unique():
             p = points[points[id_field] == poly]
             if p.shape[0] > 100:
@@ -82,6 +75,10 @@ def process_level(points, level=None, level_df=None):
                         lines = n[0]
                         lines['poly_id'] = poly
                         level_lines.append(lines)
+                    else:
+                        print('Algo salio mal 1')
+                        print('level: ', level)
+                        print('poly_id: ', poly)
                     level_polygons.append(n[1])
         if len(level_polygons):
             level_lines = pd.concat(level_lines)
@@ -92,7 +89,6 @@ def process_level(points, level=None, level_df=None):
     else:
         n = natural_polygons(points)
         level_lines = n[0]
-        # lines['poly_id'] = 0  # REALLY!!!!
         level_polygons = n[1]
     return (level_polygons, level_lines)
 
@@ -122,31 +118,38 @@ def natural_cities(points, depth):
         print("processing level: " + str(i))
         if i == 0:
             this_level = process_level(points)
-            points = gpd.sjoin(points, this_level[0], how='left', op='within')
-            points.rename(
-                columns={'index_right': 'poly_id_level_0'}, inplace=True)
-            points['level'] = 'level_0'
+            level_points = points
+            # points = gpd.sjoin(points, this_level[0], how='left', op='within')
+            # points.rename(
+            #     columns={'index_right': 'poly_id_level_0'}, inplace=True)
+            # points['level'] = 'level_0' # Está mal, creo que no importa, Si importa
+            print("puntos originales: ", points.shape[0])
         else:
-            # Get the previous level points
-            level_points = points[points['level'] == 'level_' + str(i-1)]
-            this_level = process_level(
-                level_points, 'level_' + str(i-1), this_level[0])
-            if i < depth - 1:
-                points = gpd.sjoin(points, this_level[0])
-                points.rename(columns={'index_right': 'poly_id_level_' + str(i)},
-                              inplace=True)
-                points['level'] = 'level_' + str(i)
+            # Label points with previous level polygons and filter
+            level_points = gpd.sjoin(level_points, this_level[0])
+            level_points.rename(columns={'index_right': 'poly_id_level_' + str(i-1)},
+                                inplace=True)
+            print("puntos en este nivel: ", level_points.shape[0])
+            this_level = process_level(level_points,
+                                       'level_' + str(i-1), this_level[0])
+            # if i < depth - 1:
+            #     points = gpd.sjoin(points, this_level[0])
+            #     points.rename(columns={'index_right': 'poly_id_level_' + str(i)},
+            #                   inplace=True)
+            #     points['level'] = 'level_' + str(i)
         if this_level[0] is not None:
             print("Number of polygons in level " + str(i) + ": " +
                   str(this_level[0].shape[0]))
+
             this_level[0]['level'] = 'level_' + str(i)
-            this_level[0]['poly_id'] = this_level[0].index
+            this_level[0]['poly_id'] = this_level[0].index  # ???
             polygon_levels_list.append(this_level[0])
             this_level[1]['level'] = 'level_' + str(i)
-            # I'm not sure this works (why polygon index should
+            # I'm not shure this works (why polygon index should
             # align with lines?):
+            # Seguro que esto no es lo mismo
             this_level[1]['poly_id'] = this_level[1].index
             lines_level_list.append(this_level[1])
     polygons = gpd.GeoDataFrame(pd.concat(polygon_levels_list))
     lines = gpd.GeoDataFrame(pd.concat(lines_level_list, sort=True))
-    return (polygons, lines, points)
+    return (polygons, lines)
