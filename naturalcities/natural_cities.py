@@ -1,6 +1,5 @@
 import argparse
 import math
-from scipy.spatial import Delaunay
 import numpy as np
 import matplotlib.pyplot as plt
 from shapely.geometry import MultiPoint, Point, LineString, Polygon
@@ -31,7 +30,6 @@ def natural_polygons(points_df, polygon=None):
         head = gpd.sjoin(head, polygon, how='inner', op='within')
 
     linework = linemerge(head.geometry.values)
-    #linework = unary_union(linework)
     result, _, _, _ = polygonize_full(linework)
     result = unary_union(result)
     result = {'geometry': result}
@@ -90,6 +88,8 @@ def process_level(points, level=None, level_df=None):
         n = natural_polygons(points)
         level_lines = n[0]
         level_polygons = n[1]
+    level_polygons.reset_index(inplace=True)
+    level_polygons.drop(['index'], axis=1, inplace=True)
     return (level_polygons, level_lines)
 
 
